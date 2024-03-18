@@ -43,10 +43,12 @@ API_URL="https://api.github.com/repos/${OWNER}/${REPO_NAME}/commits/${commit_sha
 files_changed=$(curl -s $API_URL | jq -r '.files[].filename')
 
 # Print the list of changed files for debugging
-echo "Files changed in the latest commit:"
-echo "$files_changed"
+# echo "Files changed in the latest commit:"
+# echo "$files_changed"
 
 # Loop through the changed files and check if they are in a specific folder
 for file in $files_changed; do
-        echo "File changed: $file"
+    # echo "File changed: $file"
+    folder=$(dirname "$file")
+    echo "$folder"
 done

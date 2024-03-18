@@ -67,17 +67,6 @@ phases:
       # - zip -r CostTool-postQuoteData .
 
       #############################################
-      - |
-
-        for FOLDER in $CHANGED_FOLDERS; do
-
-          echo "Building microservice in folder: $FOLDER"
-
-          # Add your build commands here for building the microservice in the $FOLDER
-
-          # Example: cd $FOLDER && npm install && npm run build
-
-        done
 
       ### get back into the main directory###
       - cd ..
