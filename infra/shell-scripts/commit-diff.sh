@@ -50,5 +50,6 @@ files_changed=$(curl -s $API_URL | jq -r '.files[].filename')
 for file in $files_changed; do
     # echo "File changed: $file"
     folder=$(dirname "$file")
+    echo "Folder Names"
     echo "$folder"
 done
