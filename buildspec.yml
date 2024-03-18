@@ -11,6 +11,7 @@ phases:
       - npm install
       - chmod +x infra/shell-scripts/commit-diff.sh
       - chmod +x infra/shell-scripts/CostTool-getFilterData.sh
+      - chmod +x infra/shell-scripts/CostTool-getCostData.sh
   pre_build:
     commands:
       # - echo [costengine-services-pipeline] getting deploy role SSM param
