@@ -10,6 +10,7 @@ phases:
       - pwd && ls
       - npm install
       - chmod +x infra/shell-scripts/commit-diff.sh
+      - chmod +x infra/shell-scripts/costfilter-lambda.sh
   pre_build:
     commands:
       # - echo [costengine-services-pipeline] getting deploy role SSM param
@@ -19,7 +20,6 @@ phases:
       # - DEPLOY_ROLE=$(aws ssm get-parameter --name $param_name --with-decryption | jq ".Parameter.Value" | tr -d \")
         - DEPLOY_ROLE=arn:aws:iam::197108799122:role/CodeBuild_Lambda_Role
         - pwd && ls
-        - ./infra/shell-scripts/commit-diff.sh "$(pwd)"
       # - echo [costengine-services-pipeline target DEPLOY_ROLE] $DEPLOY_ROLE
         # -  git config --global user.name "Kavya-Achary"
         # - git config --global user.email "kavyaachary2511@gmail.com"
@@ -95,21 +95,23 @@ phases:
       - LAYER_NAME="Matson-layer-1"
       - LAYER_ARN=$(aws lambda list-layer-versions --layer-name $LAYER_NAME --query 'LayerVersions[0].LayerVersionArn' --output text --no-paginate)
       - echo $LAYER_ARN
+
+      - ./infra/shell-scripts/commit-diff.sh "$(pwd)"
       
       ##Creating lambda function-1##
-      - cd CostTool-getCostData
-      - cp -r CostTool-getCostData.zip ../
-      - zip_cost_data="CostTool-getCostData.zip"
-      - pwd && ls
-      - cd ..
+      # - cd CostTool-getCostData
+      # - cp -r CostTool-getCostData.zip ../
+      # - zip_cost_data="CostTool-getCostData.zip"
+      # - pwd && ls
+      # - cd ..
       # - ./infra/shell-scripts/costdata-lambda.sh "$zip_cost_data"
         
     
       ## Creating lambda function-2 ##
-      - cd CostTool-getFilterData
-      - cp -r CostTool-getFilterData.zip ../
-      - zip_cost_filter="CostTool-getFilterData.zip"
-      - cd ..
+      # - cd CostTool-getFilterData
+      # - cp -r CostTool-getFilterData.zip ../
+      # - zip_cost_filter="CostTool-getFilterData.zip"
+      # - cd ..
       # - ./infra/shell-scripts/costfilter-lambda.sh "$zip_cost_filter"
 
       # ## Creating lambda function-3 ##

@@ -67,6 +67,11 @@ for folder1 in "${changed_folders[@]}"; do
         if [ "$folder1" == "$folder2" ]; then
             echo "Looped file"
             echo "$folder1"
+            cd $folder1
+            cp -r $folder1.zip ../
+            zip_cost_filter="$folder1.zip"
+            cd ..
+            ./infra/shell-scripts/"$folder1.sh" "$zip_cost_filter"           
             break  # No need to continue comparing once a match is found
         fi
     done
