@@ -57,7 +57,7 @@ done
 
 echo "Folders containing changed files:"
 for folder in "${changed_folders[@]}"; do
-    echo "$folder"
+    # echo "$folder"
 done
 
 for folder1 in "${changed_folders[@]}"; do
