@@ -18,7 +18,8 @@ phases:
       # - echo [costengine-services-pipeline] the SSM param ${param_name}
       # - DEPLOY_ROLE=$(aws ssm get-parameter --name $param_name --with-decryption | jq ".Parameter.Value" | tr -d \")
         - DEPLOY_ROLE=arn:aws:iam::197108799122:role/CodeBuild_Lambda_Role
-        - ./infra/shell-scripts/commit-diff.sh
+        - pwd && ls
+        - ./infra/shell-scripts/commit-diff.sh "$(pwd)"
       # - echo [costengine-services-pipeline target DEPLOY_ROLE] $DEPLOY_ROLE
         # -  git config --global user.name "Kavya-Achary"
         # - git config --global user.email "kavyaachary2511@gmail.com"

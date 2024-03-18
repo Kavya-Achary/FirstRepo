@@ -48,7 +48,7 @@ echo "$files_changed"
 
 # Loop through the changed files and check if they are in a specific folder
 for file in $files_changed; do
-    if [[ $file == "path/to/your/folder"* ]]; then
+    if [[ $file == "$1"* ]]; then
         echo "File changed: $file"
     fi
 done
