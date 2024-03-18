@@ -18,7 +18,7 @@ commit_data=$(curl -s $API_URL)
 
 # Print the received commit data for debugging
 echo "Received commit data:"
-echo "$commit_data"
+# echo "$commit_data"
 
 # Check if there's an error message in the response
 error_message=$(echo "$commit_data" | jq -r '.message')
@@ -48,7 +48,5 @@ echo "$files_changed"
 
 # Loop through the changed files and check if they are in a specific folder
 for file in $files_changed; do
-    if [[ $file == "$1"* ]]; then
         echo "File changed: $file"
-    fi
 done
