@@ -65,6 +65,7 @@ for folder1 in "${changed_folders[@]}"; do
     for folder2 in "${ListFolders[@]}"; do
         # Compare folder names
         if [ "$folder1" == "$folder2" ]; then
+            echo "Looped file"
             echo "$folder1"
             break  # No need to continue comparing once a match is found
         fi
