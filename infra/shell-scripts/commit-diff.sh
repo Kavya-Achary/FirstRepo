@@ -1,5 +1,5 @@
 #!/bin/bash
-
+ListFolders=("CostTool-getCostData" "CostTool-getFilterData")
 set -x  # Enable debugging
 
 # Branch name (default: main)
@@ -52,4 +52,21 @@ for file in $files_changed; do
     folder=$(dirname "$file")
     echo "Folder Names"
     echo "$folder"
+    changed_folders+=("$folder")
+done
+
+echo "Folders containing changed files:"
+for folder in "${changed_folders[@]}"; do
+    echo "$folder"
+done
+
+for folder1 in "${changed_folders[@]}"; do
+    # Iterate over elements in the second array
+    for folder2 in "${ListFolders[@]}"; do
+        # Compare folder names
+        if [ "$folder1" == "$folder2" ]; then
+            echo "$folder1"
+            break  # No need to continue comparing once a match is found
+        fi
+    done
 done

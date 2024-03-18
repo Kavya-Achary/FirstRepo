@@ -12,7 +12,7 @@ const runQuery = async(pool, query) => {
 
 const getFilters = async(pool, error_handler, callback) =>{
     /// BUILD RESPONSE JSON OBJ - TODO - USE ORM?
-    // test5
+    // test10
 
     let returnJSON = {};
     let query;
