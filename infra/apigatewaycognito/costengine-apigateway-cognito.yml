@@ -1,0 +1,512 @@
+# stack name: costengine-apigateway-cognito
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates Backend Infrastructure containing - API gateway
+  backed by nodeJs and Cognito Autheraizer, Cognito Userpool with a test user,
+  Lambda for Apigateway integration, Cognito DB Cluster with DB instance
+Parameters:
+  ApplicationName:
+    Description: Enter the name of the application
+    Type: String
+    Default: costengine
+  ApiCWRoleArn:
+    Description: CloudWatch Role Arn for API gateway to push access logs to CloudWatch
+    Type: String
+    Default: "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/welcome:*"
+  Environment:
+    Description: Please enter the name of the bucket to host the website
+    Type: String
+    AllowedValues:
+    - sandbox
+    - dev
+    - preprod
+    - prod
+  AppClientName:
+    Type: String
+    Description: "Name of the Cognito App Client"
+    Default: "costengine-appclient"  
+  ProviderName:
+    Type: String
+    Description: "specify the cognito OIDC name"
+    Default: "costengine-OIDC"
+  OktaClientID:
+    Type: String
+    Description: "okta client ID"   
+  OktaClientSecretID:
+    Type: String
+    NoEcho: "true"
+    Description: "okta client secret ID"
+  OktaIssuerUrl:
+    Type: String
+    Description: "okta issuer url"
+    Default: "https://matsondev.oktapreview.com/oauth2/default"
+  CognitoDomainName:
+    Type: String
+    Description: "name the cognito domain"  
+    Default: "costengine-sso"
+
+Mappings:
+  ApiDomain:
+    env:
+      sandbox: 'https://dkxhxzbb7i3m9.cloudfront.net'
+      dev:  'https://dev.costengine.matson.us'
+      preprod:  'https://uat.costengine.matson.us'
+      prod:  'https://costengine.matson.us'
+  AppClientCallBackURL:
+    environment:
+      sandbox: 'https://dkxhxzbb7i3m9.cloudfront.net/sso/okta'
+      dev:  'https://dev.costengine.matson.us/sso/okta'
+      preprod:  'https://uat.costengine.matson.us/sso/okta'
+      prod:  'https://costengine.matson.us/sso/okta'
+
+#####################################################################CostTool-getCostData& FilterData######################################################################
+Resources:
+  apiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Description: Matson application API Gateway
+      ProtocolType: HTTP
+      Name: !Sub costengine-api-${Environment}
+      CorsConfiguration:
+        AllowOrigins:
+        - !FindInMap [ApiDomain, env, !Ref Environment]
+        AllowMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          - POST
+        AllowHeaders:
+          - content-type
+          - access-control-allow-headers
+          - access-control-allow-origin
+          - x-api-key
+          - authorization
+          - x-amz-security-token
+          - x-amz-date
+          - x-requested-with
+          - accept
+          - username
+        ExposeHeaders:
+          - date, x-api-id
+        AllowCredentials: 'true'
+
+  ###########################################################LAMBDA FUNCtions Integratio ##################################################
+
+  costdataapiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getCostData/invocations
+
+  costfilterapiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getFilterData/invocations
+
+  costcreatequoteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-createQuoteRequest/invocations
+  
+  costgetquoteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getQuoteRequestRecipients/invocations
+  
+  costpostquoteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-postQuoteRequestRecipients/invocations
+  
+  costarchiveQuoteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-archiveQuoteRequestRecipients/invocations
+  
+  costpostquotedataIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref apiGateway
+      Description: Lambda proxy integration
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-postQuoteData/invocations
+ 
+ ##################################################################### APIGATEWAY-ROUTE ##############################################
+
+  costdataRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: 'POST /costData'
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: "JWT"
+      Target: !Sub "integrations/${costdataapiIntegration}"
+
+  costfilterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: 'GET /filterData'
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: "JWT"
+      Target: !Sub "integrations/${costfilterapiIntegration}"
+  
+  costcreatequoteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: POST /createQuote
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: JWT
+      Target: !Sub integrations/${costcreatequoteIntegration}
+  
+  costgetquoteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: GET /quoteRequestRecipients
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: JWT
+      Target: !Sub integrations/${costgetquoteIntegration}
+  
+  costpostquoteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: POST /quoteRequestRecipients
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: JWT
+      Target: !Sub integrations/${costpostquoteIntegration}
+ 
+  costarchivequoteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: POST /archiveQuoteRecipient
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: JWT
+      Target: !Sub integrations/${costarchiveQuoteIntegration}
+  
+  costpostquotedataRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref apiGateway
+      RouteKey: POST /quoteData
+      AuthorizerId: !Ref costengineHttpAuthorizer
+      AuthorizationType: JWT
+      Target: !Sub integrations/${costpostquotedataIntegration}
+#########################################################################################################################################################
+  costengineHttpStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: !Ref Environment
+      AutoDeploy: true
+      ApiId:
+        Ref: apiGateway
+
+  costengineHttpAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId:
+        Ref: apiGateway
+      AuthorizerType: JWT
+      IdentitySource: 
+       - $request.header.Authorization
+      Name: CostEngineCognitoAuthorizer
+      JwtConfiguration:
+        Audience: 
+          - Ref: CognitoUserPoolClient
+        Issuer:
+          Fn::Sub: 'https://cognito-idp.${AWS::Region}.amazonaws.com/${cognitoUsers}'
+
+###############################################################--------COGNITO------#############################################################################
+
+  cognitoUsers:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName:
+        Fn::Join:
+        - "-"
+        - - Ref: ApplicationName
+          - infra-pool
+          - Ref: Environment
+      UsernameConfiguration:
+        CaseSensitive: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      UsernameAttributes:
+        - email
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: "verified_email"
+            Priority: 1
+
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT  
+      Schema:
+      - AttributeDataType: String
+        DeveloperOnlyAttribute: false
+        Mutable: true
+        Name: email
+      - AttributeDataType: Number
+        DeveloperOnlyAttribute: false
+        Mutable: true
+        Name: UserType
+      - AttributeDataType: String
+        DeveloperOnlyAttribute: false
+        Mutable: true
+        Name: OktaGroups
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: cognitoUsers
+    Properties:
+      ClientName: 
+        Ref: AppClientName
+      UserPoolId: 
+        Ref: cognitoUsers
+      GenerateSecret: true
+      ExplicitAuthFlows:
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs:
+        - !FindInMap [AppClientCallBackURL, environment, !Ref Environment]
+        # LogoutURLs:
+        #   - !FindInMap [Domain, environment, !Ref Environment]
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      SupportedIdentityProviders:
+        - Ref: CognitoUserPoolIdentityProvider  
+  CognitoUserPoUserPoolDomain: 
+    Type: AWS::Cognito::UserPoolDomain 
+    Properties:
+      UserPoolId: !Ref cognitoUsers 
+      Domain: !Sub ${CognitoDomainName}-${Environment}
+  
+  CognitoUserPoolIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      ProviderName: !Ref ProviderName
+      ProviderDetails:
+        client_id: !Ref OktaClientID
+        client_secret: !Ref OktaClientSecretID
+        authorize_scopes: email profile openid cost_engine_group
+        attributes_request_method: "GET"
+        oidc_issuer: !Ref OktaIssuerUrl
+      ProviderType: "OIDC"
+      AttributeMapping: {
+        custom:OktaGroups: "groups",
+        email: "email",
+        family_name: "family_name",
+        given_name: "given_name",
+        username: "sub"
+        }
+      UserPoolId: !Ref cognitoUsers
+        
+#IAM Role for API Gateway + CloudWatch Logging
+  apiCloudWatchRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+        Tags:
+        - Key: Application
+          Value:
+            Ref: ApplicationName
+        - Key: CER
+          Value:
+            Ref: ApplicationName
+
+######################################################################## LAMBDA-PERMISSIONS####################################
+
+# Add this block for costdataapiIntegration Lambda function permissions
+  CostDataApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getCostData 
+      Principal: apigateway.amazonaws.com
+      SourceArn: 
+        Fn::Sub: "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*"
+
+# Add this block for costfilterapiIntegration Lambda function permissions
+  CostFilterApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getFilterData
+      Principal: apigateway.amazonaws.com
+      SourceArn: 
+        Fn::Sub: "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*"   
+
+# Add this block for costcreateapiIntegration Lambda function permissions
+  costcreatequoteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-createQuoteRequest
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*
+
+# Add this block for costgetquoteapiIntegration Lambda function permissions
+  costgetquoteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-getQuoteRequestRecipients
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*
+
+  # Add this block for costpostquoteapiIntegration Lambda function permissions    
+  costpostquoteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-postQuoteRequestRecipients
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*
+
+  # Add this block for cosarchivequoteapiIntegration Lambda function permissions    
+  costarchivequoteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-archiveQuoteRequestRecipients
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*
+
+  # Add this block for costpostquoteapiIntegration Lambda function permissions    
+  costpostquotedataLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CostTool-postQuoteData
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/*/*
+################################################Outputs###########################################################
+Outputs:
+  ApiGatewayEndpoint:
+    Description: "API Gateway Endpoint URL"
+    Value:
+      Fn::Sub: "https://${apiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "costengine-ApiGatewayEndpoint"
+  
+  ApiGatewayId:
+    Description: "API Gateway ID"
+    Value:
+      Ref: apiGateway
+    Export:
+      Name: !Sub "costengine-ApiGatewayId"
+
+  CostdataApiIntegrationId:
+    Description: "ID of costdataapiIntegration"
+    Value:
+      Ref: costdataapiIntegration
+    Export:
+      Name: !Sub "costengine-CostdataApiIntegrationId"
+
+  costfilterapiIntegrationId:
+    Description: "ID of cosstfiltergetdataapiIntegration"
+    Value:
+      Ref: costfilterapiIntegration
+    Export:
+      Name: !Sub "costengine-costfilterapiIntegrationId"
+ 
+  costcreatequoteIntegrationId:
+    Description: ID of costcreatequoteapiIntegration
+    Value: !Ref costcreatequoteIntegration
+    Export:
+      Name: !Sub "costengine-costcreatequoteIntegrationId"
+ 
+  costgetquoteIntegrationId:
+    Description: ID of costgetquouteapiIntegration
+    Value: !Ref costgetquoteIntegration
+    Export:
+      Name: !Sub "costengine-costgetquoteIntegrationId"
+  
+  costpostquoteIntegrationId:
+    Description: ID of costpostquoteapiIntegration
+    Value: !Ref costpostquoteIntegration
+    Export:
+      Name: !Sub "costengine-costpostquoteIntegrationId"
+  
+  costarchivequoteIntegrationId:
+    Description: ID of costarchivequotedataapiIntegration
+    Value: !Ref costarchiveQuoteIntegration
+    Export:
+      Name: !Sub "costengine-costarchiveQuoteIntegrationId"
+  
+  costpostquotedataIntegrationId:
+    Description: ID of costpostquotedataapiIntegration-new
+    Value: !Ref costpostquotedataIntegration
+    Export:
+      Name: !Sub "costengine-costpostquotedataIntegrationId"
+                 
+  CognitoUserpoolId:
+    Description: "cognitor user pool  ID"
+    Value:
+      Ref: cognitoUsers
+    Export:
+      Name: !Sub "costengine-CognitoUserpoolId"  
+      
+  CognitoUserPoolClientId:
+    Description: "Client ID of the Cognito User Pool Client"
+    Value:
+      Ref: CognitoUserPoolClient
+    Export:
+      Name: !Sub "costengine-CognitoUserPoolClientId"

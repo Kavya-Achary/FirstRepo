@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda must acquire this role in order to access secrets manager for costengine db
+Resources:
+  CostEngineLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: costengine-services-lambda-role
+      AssumeRolePolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service:
+                      - lambda.amazonaws.com
+                  Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: CostEngineLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lamba:InvokeFunction
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource:
+                  - '*'   
+              - Effect: Allow
+                Action:
+                  - ses:Get*,
+                  - ses:List*
+                Resource:
+                  - '*'    
+              - Effect: Allow
+                Action:
+                  - secretsmanager:Get*
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:database/custom-apps/costengine*"
+                
+Outputs:
+  CostEngineServicesLambdaRoleArn:
+    Description: CostEngine Role for all its Lambdas
+    Value: !GetAtt CostEngineLambdaRole.Arn

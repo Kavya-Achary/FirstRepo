@@ -17,7 +17,6 @@ const getFilters = async(pool, error_handler, callback) =>{
     let query;
 
     // APP AND DB VERSIONS
-    // Tests 123
     query = 'select * FROM `System`';
     returnJSON.versions = await runQuery(pool, query).catch(err => {
         console.log(query, err);

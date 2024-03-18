@@ -1,0 +1,585 @@
+# stack name: costengine-services-pipeline
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy pipeline for costengine services
+Parameters:
+  GitHubRepo:
+    Type: String
+    Description: The GitHub repo
+    Default: "costengine-services"
+  GitHubBranch:
+    Type: String
+    Description: The GitHub branch name to deploy
+    Default: "main"
+  GitHubUser:
+    Type: String
+    Description: The GitHub Org Name
+    Default: "MatsonInc"
+  # GitHubToken:
+  #   NoEcho: true
+  #   Type: String
+  #   Description: The GitHub OAuthToken (secret) with access to repos
+  CodeBuildEnvironmentType:
+    Type: String
+    Default: "LINUX_CONTAINER"
+    Description: The build container type
+  CodeBuildComputeType:
+    Type: String
+    Default: "BUILD_GENERAL1_SMALL"
+    Description: The build compute type
+  CodeBuildImage:
+    Type: String
+    #Default: "aws/codebuild/nodejs:16.0.0"
+    Default: "aws/codebuild/amazonlinux2-x86_64-standard:4.0"
+    Description: The build image
+ # MatsonLabsAccountId:
+ #  Type: String
+ #  Description: Account ID for matsonlabs
+ #  Default: 275416279984
+  CostEngineServicesDevAccountId:
+    Type: String
+    Description: Enter AWS Account ID that hosts CostEngine Services Dev Env
+    Default: 440476207545
+  CostEngineServicesPreProdAccountId:
+    Type: String
+    Description: Enter AWS Account ID that hosts CostEngine Services PreProd Env
+    Default: 391044600437
+  CostEngineServicesProdAccountId:
+    Type: String
+    Description: Enter AWS Account ID that hosts CostEngine Services Prod Env
+    Default: 071189020863
+  NotificationSNSTopicName:
+    Type: String
+    Description: Name of the costengine-services SNS Topic
+    Default: costengine-services-pipeline-notifications
+  KMSAdminUserName:
+    Type: String
+    Description: The KMS Admin IAM User Name
+    Default: pbhardwaj@matson.com
+  OPSEmail:
+    Type: String
+    Description: OPS team email address
+    Default: 1ITOPSSupportatHQ@matson.com
+  OPSTTEmail:
+    Type: String
+    Description: OPS team Team Track email address
+    Default: Tt_chg_itopshq@matson.com
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "GitHub Config"
+        Parameters:
+          # - GitHubToken
+          - GitHubUser
+          - GitHubRepo
+          - GitHubBranch
+      - Label:
+          default: "CodeBuild Config"
+        Parameters:
+          - CodeBuildEnvironmentType
+          - CodeBuildComputeType
+          - CodeBuildImage
+      - Label:
+          default: "Account Config"
+        Parameters:
+        #  - MatsonLabsAccountId
+          - CostEngineServicesDevAccountId
+          - CostEngineServicesPreProdAccountId
+          - CostEngineServicesProdAccountId
+      - Label:
+          default: "Notifications"
+        Parameters:
+          - NotificationSNSTopicName
+      - Label:
+          default: "KMS Config"
+        Parameters:
+          - KMSAdminUserName
+      - Label:
+          default: "OPS Notifications"
+        Parameters:
+          - OPSEmail
+          - OPSTTEmail
+    ParameterLabels:
+      # GitHubToken:
+      #   default: GitHub OAuth2 Token
+      GitHubUser:
+        default: GitHub User Name
+      GitHubRepo:
+        default: GitHub Repo Name
+      GitHubBranch:
+        default: GitHub Repo Branch Name
+      CodeBuildEnvironmentType:
+        default: CodeBuild Type
+      CodeBuildComputeType:
+        default: CodeBuild Instance Type
+      CodeBuildImage:
+        default: CodeBuild image
+   #   MatsonLabsAccountId:
+   #     default: Account ID for MatsonLabs - Sandbox
+      CostEngineServicesDevAccountId:
+        default: Account ID for CostEngine Services AWS Dev Env
+      CostEngineServicesPreProdAccountId:
+        default: Account ID for CostEngine Services AWS PreProd Env
+      CostEngineServicesProdAccountId:
+        default: Account ID for CostEngine Services AWS Prod Env
+      NotificationSNSTopicName:
+        default: Name of the CostEngineServices SNS Topic
+      KMSAdminUserName:
+        default: KMS Admin User
+      OPSEmail:
+        default: OPS email address
+      OPSTTEmail:
+        default: OPS Team Track email address
+
+Resources:
+  GitHubCodeStarConnection:
+    Type: AWS::CodeStarConnections::Connection
+    Properties:
+      ConnectionName: CostEngineSvcPiplelineConnection
+      ProviderType: GitHub
+  #
+  # IAM Roles
+  #
+  CostEngineServicesCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      RoleName: !Sub ${AWS::StackName}-codebuild-role
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-codebuild-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/costengine-services-build-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/costengine-services-build-*/*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/costengine-services/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - arn:aws:s3:::costengine-services-*/*
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: # cross-account deploy roles
+                #  - !Sub arn:aws:iam::${MatsonLabsAccountId}:role/costengine-services-deployer-role
+                  - !Sub arn:aws:iam::${CostEngineServicesDevAccountId}:role/costengine-services-deployer-role
+                  - !Sub arn:aws:iam::${CostEngineServicesPreProdAccountId}:role/costengine-services-deployer-role
+                  - !Sub arn:aws:iam::${CostEngineServicesProdAccountId}:role/costengine-services-deployer-role
+
+  CostEngineServicesCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      RoleName: !Sub ${AWS::StackName}-codepipeline-role
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-codepipeline-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource:
+              #    - !GetAtt CostEngineServicesCodeBuildDeployMatsonLabs.Arn
+                  - !GetAtt CostEngineServicesCodeBuildDeployDev.Arn
+                  - !GetAtt CostEngineServicesCodeBuildDeployPreProd.Arn
+                  - !GetAtt CostEngineServicesCodeBuildDeployProd.Arn
+              - Effect: Allow
+                Action:
+                  - s3:Put*
+                  - s3:Get*
+                Resource:
+                  - arn:aws:s3:::costengine-services-*/*
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${NotificationSNSTopicName}"
+                  - !Ref OPSSNSTopic
+              - Effect: Allow
+                Action:
+                  - codestar-connections:UseConnection
+                Resource:
+                  - !Ref GitHubCodeStarConnection
+
+  #
+  # pipeline bucket
+  #
+  CostEngineServicesCodePipelineBucket:
+    Type: AWS::S3::Bucket
+
+  #
+  # CodeBuild Jobs
+  #
+#  CostEngineServicesCodeBuildDeployMatsonLabs:
+#   Type: AWS::CodeBuild::Project
+#   Properties:
+#     Name: costengine-services-build-sandbox
+#     Description: Deploy costengine-services to MatsonLabs
+#     ServiceRole: !GetAtt CostEngineServicesCodeBuildRole.Arn
+#     Artifacts:
+#       Type: CODEPIPELINE
+#     Environment:
+#       Type: !Ref CodeBuildEnvironmentType
+#       ComputeType: !Ref CodeBuildComputeType
+#       Image: !Sub ${CodeBuildImage}
+#       EnvironmentVariables:
+#         - Name: DURATION
+#           Value: "950"
+#         - Name: STAGE
+#           Value: "sandbox"
+#         - Name: SNYK_MONITOR
+#           Value: "echo skip snyk monitor"
+#         - Name: SNYK_TEST
+#           Value: "echo skip snyk test"
+#         - Name: account
+#           Value: "LAB"
+#     Source:
+#       Type: CODEPIPELINE
+#     TimeoutInMinutes: 20
+  CostEngineServicesCodeBuildDeployDev:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: costengine-services-build-dev
+      Description: Deploy costengine-services to DEV
+      ServiceRole: !GetAtt CostEngineServicesCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: !Ref CodeBuildEnvironmentType
+        ComputeType: !Ref CodeBuildComputeType
+        Image: !Sub ${CodeBuildImage}
+        EnvironmentVariables:
+          - Name: DURATION
+            Value: "900"
+          - Name: STAGE
+            Value: "dev"
+          - Name: SNYK_MONITOR
+            Value: "echo skip snyk monitor"
+          - Name: SNYK_TEST
+            Value: "echo skip snyk test"
+          - Name: account
+            Value: "DEV"
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 20
+  CostEngineServicesCodeBuildDeployPreProd:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: costengine-services-build-preprod
+      Description: Deploy costengine-services to PREPROD
+      ServiceRole: !GetAtt CostEngineServicesCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: !Ref CodeBuildEnvironmentType
+        ComputeType: !Ref CodeBuildComputeType
+        Image: !Sub ${CodeBuildImage}
+        EnvironmentVariables:
+          - Name: DURATION
+            Value: "900"
+          - Name: STAGE
+            Value: "pp"
+          - Name: SNYK_MONITOR
+            Value: "echo skip snyk monitor"
+          - Name: SNYK_TEST
+            Value: "echo skip snyk test"
+          - Name: account
+            Value: "PREPROD"
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 20
+  CostEngineServicesCodeBuildDeployProd:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: costengine-services-build-prod
+      Description: Deploy costengine-services to PROD
+      ServiceRole: !GetAtt CostEngineServicesCodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: !Ref CodeBuildEnvironmentType
+        ComputeType: !Ref CodeBuildComputeType
+        Image: !Sub ${CodeBuildImage}
+        EnvironmentVariables:
+          - Name: DURATION
+            Value: "900"
+          - Name: STAGE
+            Value: "prod"
+          - Name: SNYK_MONITOR
+            Value: "echo skip snyk monitor"
+          - Name: SNYK_TEST
+            Value: "echo skip snyk test"
+          - Name: account
+            Value: "PROD"
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 20
+
+  #
+  # pipeline
+  #
+  CostEngineServicesCodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: CostEngineServicesKMSKey
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      RoleArn: !GetAtt CostEngineServicesCodePipelineRole.Arn
+      Stages:
+        - Name: costengine-services-Source
+          Actions:
+            - InputArtifacts: []
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: CodeStarSourceConnection
+              OutputArtifacts:
+                - Name: SourceArtifacts
+              Configuration:
+                ConnectionArn: !Ref GitHubCodeStarConnection
+                FullRepositoryId: !Sub ${GitHubUser}/${GitHubRepo}
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: "CODE_ZIP"
+              RunOrder: 1
+     #   - Name: MatsonLabs
+     #     Actions:
+     #       - Name: Deploy-to-MatsonLabs
+     #         ActionTypeId:
+     #           Category: Build
+     #           Owner: AWS
+     #           Version: "1"
+     #           Provider: CodeBuild
+     #         InputArtifacts:
+     #           - Name: SourceArtifacts
+     #         OutputArtifacts:
+     #           - Name: LabDeploymentArtifacts
+     #         Configuration:
+     #           ProjectName: !Ref CostEngineServicesCodeBuildDeployMatsonLabs
+     #         RunOrder: 1
+     #   - Name: Approval-CostEngineServices-Dev
+     #     Actions:
+     #       - Name: CostEngineServices-Dev-Approval
+     #         ActionTypeId:
+     #           Category: Approval
+     #           Owner: AWS
+     #           Version: "1"
+     #           Provider: Manual
+     #         Configuration:
+     #           NotificationArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${NotificationSNSTopicName}
+     #           ExternalEntityLink: "https://github.com/MatsonInc/costengine-services/releases"
+     #           CustomData: "CostEngineServices DEV - Deployment Pending Approval"
+     #         RunOrder: 1
+        - Name: CostEngineServices-DEV
+          Actions:
+            - Name: Deploy-to-CostEngineServices-DEV
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifacts
+              OutputArtifacts:
+                - Name: DevDeploymentArtifacts
+              Configuration:
+                ProjectName: !Ref CostEngineServicesCodeBuildDeployDev
+              RunOrder: 1
+        - Name: Approval-CostEngineServices-PREPROD
+          Actions:
+            - Name: CostEngineServices-PREPROD-Approval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+              Configuration:
+                NotificationArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${NotificationSNSTopicName}
+                ExternalEntityLink: "https://github.com/MatsonInc/costengine-services/releases"
+                CustomData: "CostEngineServices PREPROD - Deployment Pending Approval"
+              RunOrder: 1
+        - Name: CostEngineServices-PREPROD
+          Actions:
+            - Name: Deploy-to-CostEngineServices-PREPROD
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifacts
+              OutputArtifacts:
+                - Name: PreProdDeploymentArtifacts
+              Configuration:
+                ProjectName: !Ref CostEngineServicesCodeBuildDeployPreProd
+              RunOrder: 1
+        - Name: Approval-CostEngineServices-PROD-Check
+          Actions:
+            - Name: CostEngineServices-PROD-Approval-Check
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+              Configuration:
+                NotificationArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${NotificationSNSTopicName}
+                ExternalEntityLink: "https://github.com/MatsonInc/costengine-services/releases"
+                CustomData: "CostEngineServices PROD-Check - Deployment Pending Approval"
+              RunOrder: 1
+        - Name: Approval-CostEngineServices-PROD-OPS
+          Actions:
+            - Name: CostEngineServices-PROD-Approval-OPS
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+              Configuration:
+                NotificationArn: !Ref OPSSNSTopic
+                ExternalEntityLink: "https://github.com/MatsonInc/costengine-services/releases"
+                CustomData: "CostEngineServices Prod Deployment Approval Request"
+              RunOrder: 1
+        - Name: CostEngineServices-PROD
+          Actions:
+            - Name: Deploy-to-CostEngineServices-PROD
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifacts
+              OutputArtifacts:
+                - Name: ProdDeploymentArtifacts
+              Configuration:
+                ProjectName: !Ref CostEngineServicesCodeBuildDeployProd
+              RunOrder: 1
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CostEngineServicesCodePipelineBucket
+
+  #
+  # KMS - KMS key needs to be created with pipline since CodeBuild uses ssm at build time
+  #
+  CostEngineServicesKMSKey:
+    Type: AWS::KMS::Key
+    DependsOn: CostEngineServicesCodeBuildRole
+    Properties:
+      Description: KMS Key for use by costengine-services stack
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: costengine-services-key-access-policy-id
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action:
+              - kms:*
+            Resource: "*"
+
+          - Sid: Key Admin
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource,
+              - kms:UntagResource,
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: "*"
+
+          - Sid: Key User
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-codebuild-role"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+
+          - Sid: Allow attachment of persistent resources
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-codebuild-role"
+            Action:
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+            Condition:
+              Bool:
+                kms:GrantIsForAWSResource: true
+
+  CostEngineServicesKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: "alias/costengine-services/ssm/key"
+      TargetKeyId:
+        Ref: CostEngineServicesKMSKey
+
+  OPSSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref OPSEmail
+          Protocol: email
+        - Endpoint: !Ref OPSTTEmail
+          Protocol: email
+
+Outputs:
+  CodeStarGithubConnectionARN:
+    Description: Connection ARN for the Codestar connection
+    Value: !Ref GitHubCodeStarConnection

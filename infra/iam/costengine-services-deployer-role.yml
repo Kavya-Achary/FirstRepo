@@ -1,0 +1,241 @@
+# stack name: costengine-services-deployer-role
+AWSTemplateFormatVersion: "2010-09-09"
+Description: The AWS CloudFormation template for creating cross account role to be assumed by cargotrack-ci account to carry out deployment in this child account where this role would be created
+Parameters:
+  CIAccountId:
+    Type: String
+    Description: Enter CI account ID
+    Default: 196787314311
+  KMSAdminUserName:
+    Type: String
+    Description: Enter KMS admin username
+Resources:
+  CostEngineServicesStackCrossAccountDeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+                - cloudformation.amazonaws.com
+              AWS: !Sub arn:aws:iam::${CIAccountId}:role/costengine-services-pipeline-codebuild-role
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:AttachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:CreatePolicy
+                  - iam:CreateRole
+                  - iam:PassRole
+                  - iam:GetPolicy
+                  - iam:PutRolePolicy
+                  - iam:DeletePolicy
+                  - iam:ListOpenIdConnectProviders
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:ListSubscriptions
+                  - sns:ListSubscriptionsByTopic
+                  - sns:ListTopics
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:SetTopicAttributes
+                  - sns:ListPlatformApplications
+                  - SNS:GetTopicAttributes
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNetworkInterfaces
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - lambda:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - apigateway:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - events:*
+                Resource:
+                  - "*"
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - sqs:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - logs:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action: 
+                  - ssm:Describe*
+                  - ssm:Get*
+                  - ssm:List*
+                Resource:
+                  - "*"  
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/costengine-services/*"
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - budgets:ViewBudget
+                  - budgets:ModifyBudget
+                Resource:
+                  - "*"
+  #
+  # KMS Key required for each account
+  #
+#  CostEngineServicesKMSKey:
+#    Type: AWS::KMS::Key
+#    DependsOn: CostEngineServicesStackCrossAccountDeployerRole
+#    Properties:
+#      Description: KMS Key for use by costengine-services stack
+#      KeyPolicy:
+#        Version: "2012-10-17"
+#        Id: costengine-services-key-access-policy-id
+#        Statement:
+#          - Sid: Enable IAM User Permissions
+#            Effect: Allow
+#            Principal:
+#              AWS:
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+#            Action:
+#              - kms:*
+#            Resource: "*"
+#
+#          - Sid: Key Admin
+#            Effect: Allow
+#            Principal:
+#              AWS:
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+#            Action:
+#              - kms:Create*
+#              - kms:Describe*
+#              - kms:Enable*
+#              - kms:List*
+#              - kms:Put*
+#              - kms:Update*
+#              - kms:Revoke*
+#              - kms:Disable*
+#              - kms:Get*
+#              - kms:Delete*
+#              - kms:TagResource,
+#              - kms:UntagResource,
+#              - kms:ScheduleKeyDeletion
+#              - kms:CancelKeyDeletion
+#            Resource: "*"
+#
+#          - Sid: Key User
+#            Effect: Allow
+#            Principal:
+#              AWS:
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}"
+#            Action:
+#              - kms:Encrypt
+#              - kms:Decrypt
+#              - kms:ReEncrypt*
+#              - kms:GenerateDataKey*
+#              - kms:DescribeKey
+#            Resource: "*"
+#
+#          - Sid: Allow attachment of persistent resources
+#            Effect: Allow
+#            Principal:
+#              AWS:
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${KMSAdminUserName}"
+#                - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}"
+#            Action:
+#              - kms:CreateGrant
+#              - kms:ListGrants
+#              - kms:RevokeGrant
+#            Resource: "*"
+#            Condition:
+#              Bool:
+#                kms:GrantIsForAWSResource: true
+#
+#  CostEngineServicesKMSKeyAlias:
+#    Type: AWS::KMS::Alias
+#    Properties:
+#      AliasName: "alias/costengine-services/ssm/key"
+#      TargetKeyId:
+#        Ref: CostEngineServicesKMSKey
+        
+Outputs:
+  CostEngineServicesDeployRoleArn:
+    Description: Cross account role Arn in FAR aws account for code pipeline service
+    Value: !GetAtt CostEngineServicesStackCrossAccountDeployerRole.Arn
+
+#  CostEngineServicesKmsKeyArn:
+#    Description: KMS key Arn (in FAR account) to be used for FAR resource encryptions
+#    Value: !GetAtt CostEngineServicesKMSKey.Arn
+#
+#  CostEngineServicesKmsKeyId:
+#    Description: KMS key id (in FAR account) to be used for FAR resource encryptions
+#    Value: !GetAtt CostEngineServicesKMSKey.KeyId

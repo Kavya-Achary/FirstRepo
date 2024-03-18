@@ -1,0 +1,16 @@
+{
+  "name": "cost-engine",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error:no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "moment": "^2.29.4",
+    "mysql": "^2.18.1",
+    "@aws-sdk/client-ses": "^3.513.0"
+  }
+}

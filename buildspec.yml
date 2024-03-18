@@ -1,0 +1,165 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+     # - apt-get update && apt-get install jq -y
+     # - yum install epel-release -y
+      - yum install jq -y
+      - echo Installing source NPM dependencies...
+      - pwd && ls
+      - npm install
+      - chmod +x infra/shell-scripts/commit-diff.sh
+  pre_build:
+    commands:
+      # - echo [costengine-services-pipeline] getting deploy role SSM param
+      # - echo STAGE $STAGE
+      # - param_name=/costengine-services/$STAGE/deploy/role
+      # - echo [costengine-services-pipeline] the SSM param ${param_name}
+      # - DEPLOY_ROLE=$(aws ssm get-parameter --name $param_name --with-decryption | jq ".Parameter.Value" | tr -d \")
+        - DEPLOY_ROLE=arn:aws:iam::197108799122:role/CodeBuild_Lambda_Role
+        - ./infra/shell-scripts/commit-diff.sh
+      # - echo [costengine-services-pipeline target DEPLOY_ROLE] $DEPLOY_ROLE
+        # -  git config --global user.name "Kavya-Achary"
+        # - git config --global user.email "kavyaachary2511@gmail.com"
+
+        # - ./infra/shell-scripts/commit-diff.sh
+      
+  build:
+    commands:
+      - pwd && ls 
+      - mkdir nodejs
+      - cp -r node_modules nodejs
+      - zip -r nodejs.zip nodejs
+      ### Ziping the CostTool-getCostData###
+      - cd CostTool-getCostData
+      - zip -r CostTool-getCostData.zip .
+      
+      ### Ziping the CostTool-getFilterData###
+      - cd ..
+      - cd CostTool-getFilterData
+      - zip -r CostTool-getFilterData.zip .
+      
+      # ### Ziping the CostTool-getQuoteRequest###
+      # - cd ..
+      # - cd CostTool-getQuoteRequestRecipients
+      # - zip -r CostTool-getQuoteRequestRecipients.zip .
+
+      # ### Ziping the CostTool-postQuoteRequest###
+      # - cd ..
+      # - cd CostTool-postQuoteRequestRecipients
+      # - zip -r CostTool-postQuoteRequestRecipients.zip .
+
+      # ### Ziping the CostTool-archiveQuoteRequest###
+      # - cd ..
+      # - cd CostTool-archiveQuoteRequestRecipients
+      # - zip -r CostTool-archiveQuoteRequestRecipients.zip .
+
+      # ### Ziping the CostTool-createQuoteRequest###
+      # - cd ..
+      # - cd CostTool-createQuoteRequest
+      # - zip -r CostTool-createQuoteRequest .
+
+      # ### Ziping the CostTool-postQuoteData###
+      # - cd ..
+      # - cd CostTool-postQuoteData
+      # - zip -r CostTool-postQuoteData .
+
+      #############################################
+      - |
+
+        for FOLDER in $CHANGED_FOLDERS; do
+
+          echo "Building microservice in folder: $FOLDER"
+
+          # Add your build commands here for building the microservice in the $FOLDER
+
+          # Example: cd $FOLDER && npm install && npm run build
+
+        done
+
+      ### get back into the main directory###
+      - cd ..
+      - echo [costengine-services-pipeline] building costengine-services for dev environment
+      - role=$(aws sts assume-role --role-arn $DEPLOY_ROLE --role-session-name costengine-services-deployer-session)
+      - echo [costengine-services-pipeline] $role
+      - aws configure list
+      - KEY=$(echo "$role" | jq -r '.Credentials.AccessKeyId')
+      - SECRET=$(echo "$role" | jq -r '.Credentials.SecretAccessKey')
+      - TOKEN=$(echo "$role" | jq -r '.Credentials.SessionToken')
+      - export AWS_SECRET_ACCESS_KEY=$SECRET
+      - export AWS_ACCESS_KEY_ID=$KEY
+      - export AWS_SESSION_TOKEN=$TOKEN
+      # - export AWS_DEFAULT_REGION=us-west-2
+      - aws configure list
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+      - echo $ACCOUNT_ID
+     
+      ##Paramter from the parameters group## 
+      # - SUBNET_IDS=$(aws ssm get-parameter --name "/costengine/lambda/subnetIds" --query "Parameter.Value" --output text)
+      # - SECURITYGROUP_ID=$(aws ssm get-parameter --name "/costengine/lambda/securitygroupIds" --query "Parameter.Value" --output text) 
+      - SUBNET_IDS=subnet-0a357412b5f341aa7,subnet-02a28ed87d9045eee
+      - SECURITYGROUP_ID=sg-018fbcd1d3ddca988 
+      ## Creating lambda layer for to integrate with Lambda functions##
+      - aws lambda publish-layer-version --layer-name Matson-layer-1 --description "My Lambda Layer" --compatible-runtimes nodejs18.x --zip-file fileb://nodejs.zip
+      - LAYER_NAME="Matson-layer-1"
+      - LAYER_ARN=$(aws lambda list-layer-versions --layer-name $LAYER_NAME --query 'LayerVersions[0].LayerVersionArn' --output text --no-paginate)
+      - echo $LAYER_ARN
+      
+      ##Creating lambda function-1##
+      - cd CostTool-getCostData
+      - cp -r CostTool-getCostData.zip ../
+      - zip_cost_data="CostTool-getCostData.zip"
+      - pwd && ls
+      - cd ..
+      # - ./infra/shell-scripts/costdata-lambda.sh "$zip_cost_data"
+        
+    
+      ## Creating lambda function-2 ##
+      - cd CostTool-getFilterData
+      - cp -r CostTool-getFilterData.zip ../
+      - zip_cost_filter="CostTool-getFilterData.zip"
+      - cd ..
+      # - ./infra/shell-scripts/costfilter-lambda.sh "$zip_cost_filter"
+
+      # ## Creating lambda function-3 ##
+      # - cd CostTool-getQuoteRequestRecipients
+      # - cp -r CostTool-getQuoteRequestRecipients.zip ../
+      # - zip_cost_getQuote="CostTool-getQuoteRequestRecipients.zip"
+      # - cd ..
+      # - ./infra/shell-scripts/costtool-getQuote-lambda.sh "$zip_cost_getQuote"
+
+      # ## Creating lambda function-4 ##
+      # - cd CostTool-postQuoteRequestRecipients
+      # - cp -r CostTool-postQuoteRequestRecipients.zip ../
+      # - zip_cost_postQuote="CostTool-postQuoteRequestRecipients.zip"
+      # - cd ..
+      # - ./infra/shell-scripts/costtool-postQuote-lambda.sh "$zip_cost_postQuote"
+
+      # ## Creating lambda function-5 ##
+      # - cd CostTool-archiveQuoteRequestRecipients
+      # - cp -r CostTool-archiveQuoteRequestRecipients.zip ../
+      # - zip_cost_archiveQuote="CostTool-archiveQuoteRequestRecipients.zip"
+      # - cd ..
+      # - ./infra/shell-scripts/costtool-archiveQuote-lambda.sh "$zip_cost_archiveQuote"
+
+      # ## Creating lambda function-6 ##
+      # - cd CostTool-createQuoteRequest
+      # - cp -r CostTool-createQuoteRequest.zip ../
+      # - zip_cost_createQuote="CostTool-createQuoteRequest.zip"
+      # - cd ..
+      # - ./infra/shell-scripts/costtool-createQuote-lambda.sh "$zip_cost_createQuote"
+
+      # ## Creating lambda function-7 ##
+      # - cd CostTool-postQuoteData
+      # - cp -r CostTool-postQuoteData.zip ../
+      # - zip_cost_postQuoteData="CostTool-postQuoteData.zip"
+      # - cd ..
+      # - ./infra/shell-scripts/Costtool-postQuoteData.sh "$zip_cost_postQuoteData"   
+
+      - echo [costengine-services-pipeline] deploy complete!
+  post_build:
+    commands:					      
+      - echo [costengine-services-pipeline] Running tests...
+      - $TEST_CONDITION
+      - echo [costengine-services-pipeline] Done!
