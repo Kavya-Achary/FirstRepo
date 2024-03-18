@@ -10,7 +10,7 @@ phases:
       - pwd && ls
       - npm install
       - chmod +x infra/shell-scripts/commit-diff.sh
-      - chmod +x infra/shell-scripts/costfilter-lambda.sh
+      - chmod +x infra/shell-scripts/CostTool-getFilterData.sh
   pre_build:
     commands:
       # - echo [costengine-services-pipeline] getting deploy role SSM param
