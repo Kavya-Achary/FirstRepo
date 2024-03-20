@@ -22,10 +22,6 @@ phases:
         - DEPLOY_ROLE=arn:aws:iam::197108799122:role/CodeBuild_Lambda_Role
         - pwd && ls
       # - echo [costengine-services-pipeline target DEPLOY_ROLE] $DEPLOY_ROLE
-        # -  git config --global user.name "Kavya-Achary"
-        # - git config --global user.email "kavyaachary2511@gmail.com"
-
-        # - ./infra/shell-scripts/commit-diff.sh
       
   build:
     commands:
@@ -97,6 +93,7 @@ phases:
       - LAYER_ARN=$(aws lambda list-layer-versions --layer-name $LAYER_NAME --query 'LayerVersions[0].LayerVersionArn' --output text --no-paginate)
       - echo $LAYER_ARN
 
+        Testing the changes
       - ./infra/shell-scripts/commit-diff.sh "$(pwd)"
       
       ##Creating lambda function-1##
