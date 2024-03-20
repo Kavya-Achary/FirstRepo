@@ -93,7 +93,7 @@ phases:
       - LAYER_ARN=$(aws lambda list-layer-versions --layer-name $LAYER_NAME --query 'LayerVersions[0].LayerVersionArn' --output text --no-paginate)
       - echo $LAYER_ARN
 
-        Testing the changes
+        ## Testing the changes
       - ./infra/shell-scripts/commit-diff.sh "$(pwd)"
       
       ##Creating lambda function-1##
